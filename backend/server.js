@@ -6,14 +6,14 @@ const app = express();
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Initialize Retell client - Fix the initialization syntax
+// Initialize Retell client
 const client = new Retell({
   apiKey: process.env.RETELL_API_KEY
 });
 
 const activeRequests = new Map();
 const seatSwitchRequests = new Map();
-const processedConsents = new Set(); // To track which consent responses we've handled
+const processedConsents = new Set();
 const clients = new Set();
 
 function formatCallAnalysis(call) {
@@ -124,14 +124,10 @@ app.get('/events', (req, res) => {
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
 
-  // Add this client to our Set
   clients.add(res);
-
-  // Remove client when they disconnect
   req.on('close', () => clients.delete(res));
 });
 
-// Add this function to send updates to all connected clients
 function sendEventToClients(eventData) {
   clients.forEach(client => {
     client.write(`data: ${JSON.stringify(eventData)}\n\n`);
@@ -266,7 +262,15 @@ app.post("/webhook", (req, res) => {
 
 // Basic health check endpoint
 app.get("/health", (req, res) => {
-  res.status(200).json({ status: "healthy" });
+  res.status(200).json({ 
+    status: "healthy",
+    services: {
+      bot1: "+14697271468",
+      bot2: "+14699723435",
+      bot3: "+14697463182"
+    },
+    name: "Talk TUAH"
+  });
 });
 
 const PORT = process.env.PORT || 42069;

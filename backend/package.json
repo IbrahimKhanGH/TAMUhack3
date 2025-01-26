@@ -11,10 +11,14 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@puppeteer/browsers": "^2.7.0",
     "cors": "^2.8.5",
     "dotenv": "^16.0.3",
     "express": "^4.18.2",
-    "retell-sdk": "^4.13.0"
+    "puppeteer": "^24.1.1",
+    "retell-sdk": "^4.13.0",
+    "selenium-webdriver": "^4.28.1",
+    "webdriver-manager": "^12.1.9"
   },
   "devDependencies": {
     "nodemon": "^2.0.22"
