@@ -13,6 +13,7 @@ const client = new Retell({
 
 const activeRequests = new Map();
 const seatSwitchRequests = new Map();
+const consentCallToOriginalRequest = new Map();
 const processedConsents = new Set();
 const clients = new Set();
 
@@ -140,12 +141,12 @@ app.post("/dynamic-variables", (req, res) => {
 
 async function triggerOutboundCall(currentSeatHolder, isConsentCall = false) {
   try {
+    console.log(`📞 Triggering ${isConsentCall ? 'Consent' : 'Confirmation'} call for call_id: ${currentSeatHolder.requestId}`);
     let dynamicVariables;
     let fromNumber;
     let toNumber;
     
     if (isConsentCall) {
-      // For Bot #2 (Consent Bot)
       fromNumber = "+14699723435";
       toNumber = "+19035700044";  // Your number for consent demo
       dynamicVariables = {
@@ -155,7 +156,6 @@ async function triggerOutboundCall(currentSeatHolder, isConsentCall = false) {
         switch_reason: String(currentSeatHolder.reason)
       };
     } else {
-      // For Bot #3 (Confirmation/News Bot)
       fromNumber = "+14697463182";
       toNumber = currentSeatHolder.caller_phone;
       dynamicVariables = {
@@ -177,23 +177,17 @@ async function triggerOutboundCall(currentSeatHolder, isConsentCall = false) {
       }
     });
 
-    console.log('\n�� Outbound Call Triggered:', {
-      type: 'OUTBOUND_CALL_CREATED',
-      call_id: response.call_id,
-      bot_type: isConsentCall ? 'Bot #2 (Consent)' : 'Bot #3 (Confirmation)',
-      from_number: fromNumber,
-      to_number: toNumber,
-      variables: dynamicVariables,
-      metadata: {
-        bot_type: isConsentCall ? "outbound_consent" : "outbound_confirmation",
-        original_request_id: currentSeatHolder.requestId,
-        consent_result: currentSeatHolder.consent_result
-      }
-    });
-
+    console.log(`📞 Outbound ${isConsentCall ? 'Consent' : 'Confirmation'} Call Created:`, response);
+    
+    if (isConsentCall) {
+      // Map the consent call ID to the original seat switch request ID
+      consentCallToOriginalRequest.set(response.call_id, currentSeatHolder.requestId);
+      console.log(`🔗 Mapped consent call_id ${response.call_id} to original request_id ${currentSeatHolder.requestId}`);
+    }
+    
     return response;
   } catch (error) {
-    console.error('❌ Failed to trigger outbound call:', error);
+    console.error(`❌ Failed to create outbound ${isConsentCall ? 'Consent' : 'Confirmation'} call:`, error);
     throw error;
   }
 }
@@ -215,178 +209,202 @@ function sendEventToClients(eventData) {
 }
 
 // Webhook endpoint
-app.post("/webhook", (req, res) => {
+app.post("/webhook", async (req, res) => {
   const { event, call } = req.body;
   
-  // Send the event data to all connected clients
-  sendEventToClients({
-    type: event,
-    timestamp: new Date().toISOString(),
-    data: call
+  console.log('\n=== 🎯 Webhook Event Details ===');
+  console.log('Event Type:', event);
+  console.log('Call ID:', call.call_id);
+  console.log('Bot Type:', call.metadata?.bot_type);
+  console.log('Timestamps:', {
+    start: call.start_timestamp,
+    end: call.end_timestamp,
+    duration: call.end_timestamp ? (call.end_timestamp - call.start_timestamp) / 1000 : 'N/A'
   });
-
-  const eventData = {
-    event_type: event,
-    timestamp: new Date().toISOString(),
-    call_id: call.call_id
-  };
-
-  console.log('\n=== Webhook Event ===');
-  console.log(JSON.stringify(eventData, null, 2));
 
   switch (event) {
     case "call_started":
-      const startData = {
-        type: "CALL_START",
-        bot_type: call.metadata?.bot_type || 'unknown',
-        variables: call.retell_llm_dynamic_variables || {}
-      };
-      console.log(JSON.stringify(startData, null, 2));
+      console.log('\n📞 Call Started Data:', {
+        call_id: call.call_id,
+        bot_type: call.metadata?.bot_type,
+        variables: call.retell_llm_dynamic_variables
+      });
+
+      sendEventToClients({
+        type: event,
+        timestamp: new Date().toISOString(),
+        data: {
+          call_id: call.call_id,
+          bot_type: call.metadata?.bot_type,
+          duration_seconds: 0,
+          status: 'Started'
+        }
+      });
       break;
       
     case "call_ended":
-      const endData = {
-        type: "CALL_END",
-        duration_seconds: (call.end_timestamp - call.start_timestamp) / 1000,
-        disconnection_reason: call.disconnection_reason
-      };
-      console.log(JSON.stringify(endData, null, 2));
+      console.log('\n📞 Call Ended Data:', {
+        call_id: call.call_id,
+        bot_type: call.metadata?.bot_type,
+        duration: (call.end_timestamp - call.start_timestamp) / 1000,
+        reason: call.disconnection_reason
+      });
+
+      sendEventToClients({
+        type: event,
+        timestamp: new Date().toISOString(),
+        data: {
+          call_id: call.call_id,
+          bot_type: call.metadata?.bot_type,
+          duration_seconds: (call.end_timestamp - call.start_timestamp) / 1000,
+          status: 'Ended',
+          disconnection_reason: call.disconnection_reason
+        }
+      });
       break;
       
     case "call_analyzed":
-      const rawAnalysis = call.call_analysis;
+      const analysis = call.call_analysis;
       
-      console.log('\n🔍 Processing Call Analysis:', {
-        bot_type: call.metadata?.bot_type,
+      console.log('\n🔍 Call Analysis Raw Data:', {
         call_id: call.call_id,
-        has_consent_data: rawAnalysis.custom_analysis_data?.seat_switch_consent !== undefined,
-        has_switch_request: rawAnalysis.custom_analysis_data?.seat_switch_requested === true
+        bot_type: call.metadata?.bot_type,
+        duration: call.end_timestamp ? (call.end_timestamp - call.start_timestamp) / 1000 : 'N/A',
+        sentiment: analysis?.user_sentiment,
+        custom_data: analysis?.custom_analysis_data,
+        summary: analysis?.call_summary
       });
-      
-      if (call.metadata?.bot_type === "outbound_consent") {
-        const consent = rawAnalysis.custom_analysis_data?.seat_switch_consent;
-        const originalRequestId = call.metadata?.original_request_id;
-        
-        console.log('🤝 Processing Consent:', {
-          consent,
-          originalRequestId
-        });
 
-        if (originalRequestId) {
-          const originalRequest = seatSwitchRequests.get(originalRequestId);
-          if (originalRequest) {
-            // Store consent result
-            originalRequest.consent_result = consent;
-            
-            // Always trigger confirmation call, regardless of consent result
-            console.log('📞 Triggering confirmation call for:', {
-              ...originalRequest,
-              consent_result: consent ? 'approved' : 'denied'
-            });
-            
-            // Trigger Bot #3 (Confirmation Call) with consent result
-            triggerOutboundCall(originalRequest, false)
-              .then(response => {
-                console.log('✅ Confirmation call triggered:', response.call_id);
-              })
-              .catch(error => {
-                console.error('❌ Failed to trigger confirmation call:', error);
-              });
-          } else {
-            console.error('❌ Original request not found for ID:', originalRequestId);
-          }
-        }
-      } else if (rawAnalysis.custom_analysis_data?.seat_switch_requested) {
+      // Handle Seat Switch Requests
+      if (analysis.custom_analysis_data?.seat_switch_requested) {
         console.log('\n📝 New Seat Switch Request Detected');
-        
-        // Convert seat format (from 12A to A12)
-        const formatToFrontend = (seat) => {
-          const match = seat.match(/^(\d{1,2})([A-F])$/);
-          return match ? `${match[2]}${match[1]}` : seat;
-        };
-
-        const currentSeat = formatToFrontend(rawAnalysis.custom_analysis_data.current_seat_number);
-        const requestedSeat = formatToFrontend(rawAnalysis.custom_analysis_data.requested_seat_number);
         
         // Store the original request with formatted seats
         seatSwitchRequests.set(call.call_id, {
           requestId: call.call_id,
           caller_phone: call.from_number,
-          current_seat: currentSeat,
-          requested_seat: requestedSeat,
-          reason: rawAnalysis.custom_analysis_data.seat_switch_reason
+          current_seat: analysis.custom_analysis_data.current_seat_number,
+          requested_seat: analysis.custom_analysis_data.requested_seat_number,
+          reason: analysis.custom_analysis_data.seat_switch_reason
         });
         
         // Send event to frontend about the request with formatted seats
         sendEventToClients({
           type: 'SEAT_SWITCH_REQUESTED',
           data: {
-            currentSeat: currentSeat,    // Now in A12 format
-            requestedSeat: requestedSeat // Now in A12 format
+            currentSeat: formatSeatToFrontend(analysis.custom_analysis_data.current_seat_number),
+            requestedSeat: formatSeatToFrontend(analysis.custom_analysis_data.requested_seat_number)
           }
         });
         
         // Trigger consent call
-        triggerOutboundCall(seatSwitchRequests.get(call.call_id), true);
+        try {
+          await triggerOutboundCall(seatSwitchRequests.get(call.call_id), true);
+        } catch (error) {
+          console.error('❌ Error triggering consent call:', error);
+        }
       }
 
-      console.log('\n🔍 Raw Analysis:');
-      console.log(JSON.stringify(rawAnalysis, null, 2));
-
-      // Format the analysis based on the data we received
-      const analysisData = {
-        type: "CALL_ANALYSIS",
-        call_details: {
-          id: call.call_id,
-          bot_type: call.metadata?.bot_type || 'unknown',
-          duration_seconds: (call.end_timestamp - call.start_timestamp) / 1000,
-          sentiment: rawAnalysis.user_sentiment,
-          success: rawAnalysis.call_successful
-        },
-        seat_request: rawAnalysis.custom_analysis_data?.seat_switch_requested ? {
-          current_seat: rawAnalysis.custom_analysis_data.current_seat_number,
-          requested_seat: rawAnalysis.custom_analysis_data.requested_seat_number,
-          reason: rawAnalysis.custom_analysis_data.seat_switch_reason
-        } : null,
-        summary: rawAnalysis.call_summary,
-        transcript: call.transcript
-      };
-
-      console.log('\n📊 Formatted Analysis:');
-      console.log(JSON.stringify(analysisData, null, 2));
-
-      if (call.metadata?.bot_type === 'outbound_confirmation') {
-        console.log('✨ Processing confirmation call analysis');
-        const originalRequestId = call.metadata?.original_request_id;
+      // Handle Confirmation Calls based on consent call's call_id
+      if (call.metadata?.bot_type === 'outbound_consent') {
+        const consentCallId = call.call_id;
+        const originalRequestId = consentCallToOriginalRequest.get(consentCallId);
         
         if (originalRequestId) {
           const originalRequest = seatSwitchRequests.get(originalRequestId);
+          
           if (originalRequest) {
-            // Send SEAT_SWITCH_CONFIRMED event to frontend
-            sendEventToClients({
-              type: 'SEAT_SWITCH_CONFIRMED',
-              data: {
-                success: true,
-                oldSeat: originalRequest.current_seat,
-                newSeat: originalRequest.requested_seat
-              }
-            });
-
-            // Update the current user's seat in backend (ensure frontend format)
-            currentUserSeat = formatSeatToFrontend(originalRequest.requested_seat);
-            console.log('🔄 Updated current seat to:', currentUserSeat);
+            console.log('✨ Processing confirmation call for original_request_id:', originalRequestId);
             
-            // Clean up the request
-            seatSwitchRequests.delete(originalRequestId);
+            // Trigger confirmation call
+            try {
+              await triggerOutboundCall(originalRequest, false);
+            } catch (error) {
+              console.error('❌ Error triggering confirmation call:', error);
+            }
+            
+            // Remove the mapping after triggering
+            consentCallToOriginalRequest.delete(consentCallId);
           }
+        } else {
+          console.warn(`⚠️ No original_request_id found for consent_call_id: ${consentCallId}`);
         }
       }
+
+      // Handle Confirmation Call Analysis
+      if (call.metadata?.bot_type === 'outbound_confirmation') {
+        const originalRequestId = call.metadata.original_request_id;
+        const originalRequest = seatSwitchRequests.get(originalRequestId);
+        
+        if (originalRequest) {
+          console.log('✅ Seat Switch Confirmed for original_request_id:', originalRequestId);
+          
+          // Send SEAT_SWITCH_CONFIRMED event to frontend
+          sendEventToClients({
+            type: 'SEAT_SWITCH_CONFIRMED',
+            data: {
+              success: analysis?.call_successful,
+              oldSeat: originalRequest.current_seat,
+              newSeat: originalRequest.requested_seat
+            }
+          });
+
+          // Update the current user's seat in backend (ensure frontend format)
+          currentUserSeat = formatSeatToFrontend(originalRequest.requested_seat);
+          console.log('🔄 Updated current seat to:', currentUserSeat);
+          
+          // Clean up the request
+          seatSwitchRequests.delete(originalRequestId);
+        }
+      }
+
+      // Send call_analyzed event to frontend
+      sendEventToClients({
+        type: event,
+        timestamp: new Date().toISOString(),
+        data: {
+          call_id: call.call_id,
+          bot_type: call.metadata?.bot_type || 'unknown',
+          duration_seconds: call.end_timestamp ? 
+            (call.end_timestamp - call.start_timestamp) / 1000 : null,
+          status: 'Analyzed',
+          sentiment: analysis?.user_sentiment || 'neutral',
+          transcript: call.transcript || '',
+          custom_data: analysis?.custom_analysis_data || {},
+          summary: analysis?.call_summary || '',
+          call_successful: analysis?.call_successful,
+          in_voicemail: analysis?.in_voicemail,
+          agent_task_completion: analysis?.agent_task_completion_rating,
+          call_completion: analysis?.call_completion_rating
+        }
+      });
+
+      console.log('\n📤 Sending to Frontend:', JSON.stringify({
+        type: event,
+        timestamp: new Date().toISOString(),
+        data: {
+          call_id: call.call_id,
+          bot_type: call.metadata?.bot_type || 'unknown',
+          duration_seconds: call.end_timestamp ? 
+            (call.end_timestamp - call.start_timestamp) / 1000 : null,
+          status: 'Analyzed',
+          sentiment: analysis?.user_sentiment || 'neutral',
+          transcript: call.transcript || '',
+          custom_data: analysis?.custom_analysis_data || {},
+          summary: analysis?.call_summary || '',
+          call_successful: analysis?.call_successful,
+          in_voicemail: analysis?.in_voicemail,
+          agent_task_completion: analysis?.agent_task_completion_rating,
+          call_completion: analysis?.call_completion_rating
+        }
+      }, null, 2));
+
       break;
       
     default:
       console.log(JSON.stringify({ type: "UNKNOWN_EVENT", event }, null, 2));
   }
-  
+
   res.status(204).send();
 });
 

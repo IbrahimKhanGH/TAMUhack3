@@ -111,25 +111,42 @@ function App() {
     
     eventSource.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      console.log('🎯 SSE Event Received:', data);
+      console.log('\n🎯 SSE Event Received:', data);
 
       switch(data.type) {
         case 'call_started':
         case 'call_ended':
         case 'call_analyzed':
-          setEvents(prev => [...prev, {
-            type: data.type,
-            timestamp: data.timestamp,
-            callDetails: {
-              id: data.data.call_id || 'unknown',
-              status: data.type === 'call_started' ? 'Started' : 
-                     data.type === 'call_ended' ? 'Ended' : 'Analyzed',
-              duration: data.data.duration_seconds ? 
-                       `${Math.round(data.data.duration_seconds)}s` : 'N/A',
-              transcript: data.data.transcript || '',
-              sentiment: data.data.sentiment || 'neutral'
+          // Check if we already have an event of this type with this call ID
+          setEvents(prev => {
+            const existingEvent = prev.find(e => 
+              e.callDetails.id === data.data.call_id && 
+              e.type === data.type
+            );
+            
+            if (existingEvent) {
+              console.log('📝 Duplicate event detected, skipping:', {
+                type: data.type,
+                call_id: data.data.call_id
+              });
+              return prev;
             }
-          }]);
+
+            return [{
+              type: data.type,
+              timestamp: data.timestamp,
+              callDetails: {
+                id: data.data.call_id,
+                status: data.data.status,
+                duration: data.data.duration_seconds ? 
+                         `${Math.round(data.data.duration_seconds)}s` : 'N/A',
+                sentiment: data.data.sentiment || 'neutral',
+                transcript: data.data.transcript || '',
+                customData: data.data.custom_data || {},
+                summary: data.data.summary || ''
+              }
+            }, ...prev];
+          });
           break;
 
         case 'SEAT_SWITCH_REQUESTED':
@@ -137,7 +154,6 @@ function App() {
           setRequestedSeat(data.data.requestedSeat);
           setSeatSwitchPending(true);
           
-          // Update flight data to show pending state
           setFlightData(prev => ({
             ...prev,
             seats: {
@@ -157,7 +173,15 @@ function App() {
         case 'SEAT_SWITCH_CONFIRMED':
           console.log('✅ Seat Switch Confirmed:', data.data);
           if (data.data.success) {
-            const { oldSeat, newSeat } = data.data;
+            // Format seats to match frontend format (letter first)
+            const formatSeat = (seat) => {
+              const match = seat.match(/^(\d{1,2})([A-F])$/);
+              return match ? `${match[2]}${match[1]}` : seat;
+            };
+
+            const oldSeat = formatSeat(data.data.oldSeat);
+            const newSeat = formatSeat(data.data.newSeat);
+            
             console.log('🔄 Updating seats:', { oldSeat, newSeat });
             
             setFlightData(prev => ({
@@ -166,15 +190,17 @@ function App() {
                 ...prev.seats,
                 [oldSeat]: {
                   ...prev.seats[oldSeat],
-                  occupied: false,
-                  passenger: null,
-                  pending: false
+                  occupied: true,
+                  passenger: "Previous Passenger",
+                  pending: false,
+                  highlighted: false
                 },
                 [newSeat]: {
                   ...prev.seats[newSeat],
                   occupied: true,
                   passenger: "Mr. Khan",
-                  pending: false
+                  pending: false,
+                  highlighted: true
                 }
               }
             }));
@@ -205,7 +231,7 @@ function App() {
     return () => {
       eventSource.close();
     };
-  }, [originalSeat]);
+  }, []);
 
   // **4. Logging for handleSeatSwitch**
   // This is already included within handleSeatSwitch via console.log
@@ -220,8 +246,8 @@ function App() {
     const getSeatStyle = (seatClass, isOccupied, seatId) => {
       const baseStyle = "w-8 h-8 rounded flex flex-col items-center justify-center text-xs transition-all duration-500";
       
-      if (seatId === originalSeat) {
-        console.log('🎯 Matching seat found:', seatId);
+      // Check if this is the current user's seat
+      if (seatId === originalSeat || flightData.seats[seatId]?.highlighted) {
         return `${baseStyle} bg-yellow-100 border-2 border-yellow-400 ${
           seatSwitchPending ? 'animate-pulse' : ''
         }`;
@@ -499,29 +525,35 @@ function App() {
                         <div>
                           <span className="text-xs text-gray-500">Call ID</span>
                           <p className="text-sm font-medium text-gray-900">
-                            {event.callDetails?.id ? event.callDetails.id.slice(-6) : 'N/A'}
+                            {event.callDetails.id.slice(-6)}
                           </p>
                         </div>
                         <div>
                           <span className="text-xs text-gray-500">Status</span>
                           <p className="text-sm font-medium text-gray-900">
-                            {event.callDetails?.status || 'N/A'}
+                            {event.callDetails.status}
                           </p>
                         </div>
                         <div>
                           <span className="text-xs text-gray-500">Duration</span>
                           <p className="text-sm font-medium text-gray-900">
-                            {event.callDetails?.duration || 'N/A'}
+                            {event.callDetails.duration}
                           </p>
                         </div>
-                        {event.callDetails?.sentiment && (
-                          <div>
-                            <span className="text-xs text-gray-500">Sentiment</span>
+                        <div>
+                          <span className="text-xs text-gray-500">Sentiment</span>
+                          <p className="text-sm font-medium text-gray-900">
+                            {event.callDetails.sentiment}
+                          </p>
+                        </div>
+                        {Object.entries(event.callDetails.customData || {}).map(([key, value]) => (
+                          <div key={key}>
+                            <span className="text-xs text-gray-500">{key.replace(/_/g, ' ').toUpperCase()}</span>
                             <p className="text-sm font-medium text-gray-900">
-                              {event.callDetails.sentiment}
+                              {typeof value === 'boolean' ? value.toString() : value}
                             </p>
                           </div>
-                        )}
+                        ))}
                       </div>
                     </div>
                   </div>
