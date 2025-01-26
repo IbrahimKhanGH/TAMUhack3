@@ -111,19 +111,30 @@ function App() {
     
     eventSource.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      console.log('🎯 SSE Event Received:', {
-        type: data.type,
-        data: data.data,
-        timestamp: new Date().toISOString()
-      });
+      console.log('🎯 SSE Event Received:', data);
 
       switch(data.type) {
+        case 'call_started':
+        case 'call_ended':
+        case 'call_analyzed':
+          setEvents(prev => [...prev, {
+            type: data.type,
+            timestamp: data.timestamp,
+            callDetails: {
+              id: data.data.call_id || 'unknown',
+              status: data.type === 'call_started' ? 'Started' : 
+                     data.type === 'call_ended' ? 'Ended' : 'Analyzed',
+              duration: data.data.duration_seconds ? 
+                       `${Math.round(data.data.duration_seconds)}s` : 'N/A',
+              transcript: data.data.transcript || '',
+              sentiment: data.data.sentiment || 'neutral'
+            }
+          }]);
+          break;
+
         case 'SEAT_SWITCH_REQUESTED':
           console.log('🔄 Seat Switch Requested:', data.data);
-          // Make sure we're getting the seat in the correct format (A12)
-          const requestedSeatId = data.data.requestedSeat;
-          console.log('🎯 Setting requested seat to:', requestedSeatId);
-          setRequestedSeat(requestedSeatId);
+          setRequestedSeat(data.data.requestedSeat);
           setSeatSwitchPending(true);
           
           // Update flight data to show pending state
@@ -135,8 +146,8 @@ function App() {
                 ...prev.seats[data.data.currentSeat],
                 pending: true
               },
-              [requestedSeatId]: {
-                ...prev.seats[requestedSeatId],
+              [data.data.requestedSeat]: {
+                ...prev.seats[data.data.requestedSeat],
                 pending: true
               }
             }
@@ -174,19 +185,6 @@ function App() {
           }
           break;
 
-        // Add handlers for other event types if needed
-        case 'call_started':
-        case 'call_ended':
-        case 'call_analyzed':
-          // Handle call events for logging purposes
-          setEvents(prev => [...prev, {
-            id: data.data?.call_id || Date.now(),
-            type: data.type,
-            timestamp: new Date().toISOString(),
-            details: data.data
-          }]);
-          break;
-
         default:
           console.log('ℹ️ Unhandled event type:', data.type);
       }
@@ -207,7 +205,7 @@ function App() {
     return () => {
       eventSource.close();
     };
-  }, [originalSeat]); // Only include originalSeat in dependencies
+  }, [originalSeat]);
 
   // **4. Logging for handleSeatSwitch**
   // This is already included within handleSeatSwitch via console.log
@@ -402,7 +400,7 @@ function App() {
                   className="h-8"
                 />
                 <h1 className="text-2xl font-bold text-blue-900">
-                  Talk TuAAh
+                  TalkTuahAirline
                 </h1>
               </div>
 
@@ -478,6 +476,7 @@ function App() {
                         <span className={`px-3 py-1 rounded-full text-sm font-medium
                           ${event.type === 'call_started' ? 'bg-blue-100 text-blue-800' :
                             event.type === 'call_ended' ? 'bg-green-100 text-green-800' :
+                            event.type === 'call_analyzed' ? 'bg-yellow-100 text-yellow-800' :
                             'bg-purple-100 text-purple-800'}`}>
                           {event.type.replace('_', ' ').toUpperCase()}
                         </span>
@@ -485,43 +484,45 @@ function App() {
                           {new Date(event.timestamp).toLocaleTimeString()}
                         </span>
                       </div>
-                      <button
-                        onClick={() => setSelectedCall(event)}
-                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                      >
-                        View Details
-                      </button>
+                      {event.callDetails?.transcript && (
+                        <button
+                          onClick={() => setSelectedCall(event)}
+                          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                        >
+                          View Details
+                        </button>
+                      )}
                     </div>
 
                     <div className="space-y-2">
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div>
                           <span className="text-xs text-gray-500">Call ID</span>
-                          <p className="text-sm font-medium text-gray-900">{event.callDetails.id.slice(-6)}</p>
+                          <p className="text-sm font-medium text-gray-900">
+                            {event.callDetails?.id ? event.callDetails.id.slice(-6) : 'N/A'}
+                          </p>
                         </div>
                         <div>
                           <span className="text-xs text-gray-500">Status</span>
-                          <p className="text-sm font-medium text-gray-900">{event.callDetails.status}</p>
+                          <p className="text-sm font-medium text-gray-900">
+                            {event.callDetails?.status || 'N/A'}
+                          </p>
                         </div>
                         <div>
                           <span className="text-xs text-gray-500">Duration</span>
-                          <p className="text-sm font-medium text-gray-900">{event.callDetails.duration}</p>
+                          <p className="text-sm font-medium text-gray-900">
+                            {event.callDetails?.duration || 'N/A'}
+                          </p>
                         </div>
-                      </div>
-
-                      {Object.keys(event.callDetails.analysis).length > 0 && (
-                        <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                          <h4 className="text-sm font-medium text-gray-900 mb-2">Analysis Results</h4>
-                          <div className="grid grid-cols-2 gap-4">
-                            {Object.entries(event.callDetails.analysis).map(([key, value]) => (
-                              <div key={key}>
-                                <span className="text-xs text-gray-500">{key.replace('_', ' ')}</span>
-                                <p className="text-sm font-medium text-gray-900">{JSON.stringify(value)}</p>
-                              </div>
-                            ))}
+                        {event.callDetails?.sentiment && (
+                          <div>
+                            <span className="text-xs text-gray-500">Sentiment</span>
+                            <p className="text-sm font-medium text-gray-900">
+                              {event.callDetails.sentiment}
+                            </p>
                           </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}

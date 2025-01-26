@@ -399,7 +399,7 @@ app.get("/health", (req, res) => {
       bot2: "+14699723435",
       bot3: "+14697463182"
     },
-    name: "Talk TUAH"
+    name: "TalkTuahAirline"
   });
 });
 
