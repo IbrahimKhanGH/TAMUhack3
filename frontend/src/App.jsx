@@ -108,7 +108,7 @@ function App() {
   // **3. Handle Server-Sent Events (SSE)**
   useEffect(() => {
     const eventSource = new EventSource('/events');
-
+    
     eventSource.onmessage = (event) => {
       const data = JSON.parse(event.data);
       console.log('🎯 SSE Event Received:', {
@@ -120,66 +120,73 @@ function App() {
       switch(data.type) {
         case 'SEAT_SWITCH_REQUESTED':
           console.log('🔄 Seat Switch Requested:', data.data);
-          setRequestedSeat(data.data.requestedSeat);
+          // Make sure we're getting the seat in the correct format (A12)
+          const requestedSeatId = data.data.requestedSeat;
+          console.log('🎯 Setting requested seat to:', requestedSeatId);
+          setRequestedSeat(requestedSeatId);
           setSeatSwitchPending(true);
+          
+          // Update flight data to show pending state
+          setFlightData(prev => ({
+            ...prev,
+            seats: {
+              ...prev.seats,
+              [data.data.currentSeat]: {
+                ...prev.seats[data.data.currentSeat],
+                pending: true
+              },
+              [requestedSeatId]: {
+                ...prev.seats[requestedSeatId],
+                pending: true
+              }
+            }
+          }));
           break;
 
         case 'SEAT_SWITCH_CONFIRMED':
           console.log('✅ Seat Switch Confirmed:', data.data);
           if (data.data.success) {
-            console.log('🔄 Calling handleSeatSwitch with:', {
-              oldSeat: data.data.oldSeat,
-              newSeat: data.data.newSeat
-            });
-            handleSeatSwitch(data.data.oldSeat, data.data.newSeat);
-            setSeatSwitchPending(false);
-          }
-          break;
-
-        case 'SEAT_UPDATED':
-          const { previousSeat, newSeat, seatSwap } = data.data;
-          
-          // Safety check to ensure seats exist in the map
-          if (previousSeat && newSeat) {
-            setFlightData(prev => {
-              // Verify both seats exist in the map
-              const prevSeatExists = previousSeat in prev.seats;
-              const newSeatExists = newSeat in prev.seats;
-              
-              if (!prevSeatExists || !newSeatExists) {
-                console.error('❌ Invalid seat update - seats not found in map:', {
-                  previousSeat,
-                  newSeat,
-                  prevSeatExists,
-                  newSeatExists
-                });
-                return prev;
-              }
-
-              return {
-                ...prev,
-                seats: {
-                  ...prev.seats,
-                  [previousSeat]: {
-                    ...prev.seats[previousSeat],
-                    occupied: true,
-                    passenger: "Original Passenger"
-                  },
-                  [newSeat]: {
-                    ...prev.seats[newSeat],
-                    occupied: true,
-                    passenger: "Mr. Khan"
-                  }
+            const { oldSeat, newSeat } = data.data;
+            console.log('🔄 Updating seats:', { oldSeat, newSeat });
+            
+            setFlightData(prev => ({
+              ...prev,
+              seats: {
+                ...prev.seats,
+                [oldSeat]: {
+                  ...prev.seats[oldSeat],
+                  occupied: false,
+                  passenger: null,
+                  pending: false
+                },
+                [newSeat]: {
+                  ...prev.seats[newSeat],
+                  occupied: true,
+                  passenger: "Mr. Khan",
+                  pending: false
                 }
-              };
-            });
+              }
+            }));
+            
             setOriginalSeat(newSeat);
-          } else {
-            console.error('❌ Invalid seat update data:', data.data);
+            setSeatSwitchPending(false);
+            setRequestedSeat(null);
           }
           break;
 
-        // Handle other event types as needed
+        // Add handlers for other event types if needed
+        case 'call_started':
+        case 'call_ended':
+        case 'call_analyzed':
+          // Handle call events for logging purposes
+          setEvents(prev => [...prev, {
+            id: data.data?.call_id || Date.now(),
+            type: data.type,
+            timestamp: new Date().toISOString(),
+            details: data.data
+          }]);
+          break;
+
         default:
           console.log('ℹ️ Unhandled event type:', data.type);
       }
@@ -195,13 +202,12 @@ function App() {
 
     eventSource.onerror = (error) => {
       console.error('❌ SSE Error:', error);
-      eventSource.close();
     };
 
     return () => {
       eventSource.close();
     };
-  }, [originalSeat, handleSeatSwitch]);
+  }, [originalSeat]); // Only include originalSeat in dependencies
 
   // **4. Logging for handleSeatSwitch**
   // This is already included within handleSeatSwitch via console.log

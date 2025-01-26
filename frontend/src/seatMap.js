@@ -84,7 +84,7 @@ const seatMap = {
   
       // Row 14
       "A14": { occupied: true, passenger: "Economy Passenger 7", class: "economy", price: "$0" },
-      "B14": { occupied: true, passenger: "Economy Passenger 8", class: "economy", price: "$0" },
+      "B14": { occupied: true, passenger: "Economy Passenger 8", class: "economy", price: "" },
       "C14": { occupied: true, passenger: "Economy Passenger 9", class: "economy", price: "$0" },
       "D14": { occupied: true, passenger: "Economy Passenger 10", class: "economy", price: "$0" },
       "E14": { occupied: false, passenger: null, class: "economy", price: "" },
