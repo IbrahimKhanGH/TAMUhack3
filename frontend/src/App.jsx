@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { seatMap } from './seatMap.js'  // Make sure to include the .js extension
 
 function App() {
@@ -31,6 +31,33 @@ function App() {
     },
     seats: seatMap.seats
   });
+  const [userSeat, setUserSeat] = useState('D13'); // Default seat
+  const [originalSeat, setOriginalSeat] = useState('A12');  // Starting seat
+  const [requestedSeat, setRequestedSeat] = useState(null); // Seat someone wants to switch to
+  const [seatSwitchPending, setSeatSwitchPending] = useState(false);
+
+  const handleSeatSwitch = useCallback((oldSeat, newSeat) => {
+    // First update the visual states
+    setFlightData(prev => ({
+      ...prev,
+      seats: {
+        ...prev.seats,
+        [oldSeat]: { 
+          ...prev.seats[oldSeat], 
+          occupied: true,  // Previous seat becomes occupied
+          passenger: "Another Passenger" 
+        },
+        [newSeat]: { 
+          ...prev.seats[newSeat], 
+          occupied: true, 
+          passenger: "Mr. Khan" 
+        }
+      }
+    }));
+    
+    // Update the current seat
+    setOriginalSeat(newSeat);
+  }, []);
 
   useEffect(() => {
     // Fetch health status
@@ -56,13 +83,37 @@ function App() {
           analysis: data.data.call_analysis?.custom_analysis_data || {}
         }
       };
+
+      // Add seat update handling
+      if (data.type === 'seat_update') {
+        setUserSeat(data.data.new_seat);
+      }
+
+      // Handle different event types
+      switch(data.type) {
+        case 'SEAT_SWITCH_REQUEST':
+          setRequestedSeat(data.data.requested_seat);
+          setSeatSwitchPending(true);
+          break;
+        
+        case 'SEAT_SWITCH_CONSENT':
+          if (data.data.consent_given) {
+            const oldSeat = originalSeat;
+            const newSeat = requestedSeat;
+            handleSeatSwitch(oldSeat, newSeat);
+          }
+          setSeatSwitchPending(false);
+          setRequestedSeat(null);
+          break;
+      }
+
       setEvents(prev => [simplifiedData, ...prev].slice(0, 10)); // Keep only last 10 events
     };
 
     return () => {
       eventSource.close();
     };
-  }, []);
+  }, [originalSeat, requestedSeat, handleSeatSwitch]);
 
   const renderSeatMap = () => {
     const rows = [];
@@ -70,18 +121,41 @@ function App() {
     const midPoint = 17; // Split at row 15
 
     // Helper function to get seat class style
-    const getSeatStyle = (seatClass, isOccupied, isYourSeat) => {
-      const baseStyle = "w-8 h-8 rounded flex flex-col items-center justify-center text-xs";
-      if (isYourSeat) return `${baseStyle} bg-yellow-100 border-2 border-yellow-400`;
-      if (isOccupied) return `${baseStyle} bg-red-100 text-red-800`;
+    const getSeatStyle = (seatClass, isOccupied, seatId) => {
+      const baseStyle = "w-8 h-8 rounded flex flex-col items-center justify-center text-xs transition-all duration-500";
       
+      // Your seat - with pulse animation when switching
+      if (seatId === originalSeat) {
+        return `${baseStyle} bg-yellow-100 border-2 border-yellow-400 ${
+          seatSwitchPending ? 'animate-pulse' : ''
+        }`;
+      }
+      
+      // Requested seat - with gentle glow animation
+      if (seatId === requestedSeat && seatSwitchPending) {
+        return `${baseStyle} bg-blue-200 border-2 border-blue-400 animate-pulse`;
+      }
+      
+      // Different shades for occupied seats with fade transition
+      if (isOccupied) {
+        switch (seatClass) {
+          case 'first':
+            return `${baseStyle} bg-red-300 text-red-900 transform hover:scale-105`;
+          case 'extra':
+            return `${baseStyle} bg-red-200 text-red-900 transform hover:scale-105`;
+          default:
+            return `${baseStyle} bg-red-100 text-red-800 transform hover:scale-105`;
+        }
+      }
+      
+      // Available seats with hover effect
       switch (seatClass) {
         case 'first':
-          return `${baseStyle} bg-purple-100 text-purple-800`;
+          return `${baseStyle} bg-purple-100 text-purple-800 hover:bg-purple-200`;
         case 'extra':
-          return `${baseStyle} bg-blue-100 text-blue-800`;
+          return `${baseStyle} bg-blue-100 text-blue-800 hover:bg-blue-200`;
         default:
-          return `${baseStyle} bg-green-100 text-green-800`;
+          return `${baseStyle} bg-green-100 text-green-800 hover:bg-green-200`;
       }
     };
 
@@ -95,69 +169,94 @@ function App() {
           <div className="w-6 flex items-center justify-center text-xs text-gray-500">
             {row}
           </div>
-          <div className="flex gap-1">
-            {row <= 4 ? (
-              // First Class 2-2 config
-              <>
-                <div className="w-4"></div>
+          
+          {row <= 4 ? (
+            // First Class 2-2 config
+            <div className="flex w-full justify-center">
+              {/* Left side first class */}
+              <div className="flex gap-1">
                 {['A', 'C'].map(letter => (
                   <div
                     key={`${letter}${row}`}
-                    className={getSeatStyle('first', flightData.seats[`${letter}${row}`]?.occupied, `${letter}${row}` === 'A12')}
+                    className={getSeatStyle('first', flightData.seats[`${letter}${row}`]?.occupied, `${letter}${row}`)}
                   >
                     <div className="text-xs font-bold">{letter}{row}</div>
+                    {!flightData.seats[`${letter}${row}`]?.occupied && (
+                      <div className="text-[8px] text-gray-600">
+                        {flightData.seats[`${letter}${row}`]?.price}
+                      </div>
+                    )}
                   </div>
                 ))}
-                <div className="w-4"></div>
-              </>
-            ) : (
-              // Regular 3-3 config
-              ['A', 'B', 'C'].map(letter => (
-                <div
-                  key={`${letter}${row}`}
-                  className={getSeatStyle(
-                    row <= 12 ? 'extra' : 'economy',
-                    flightData.seats[`${letter}${row}`]?.occupied,
-                    `${letter}${row}` === 'A12'
-                  )}
-                >
-                  <div className="text-xs font-bold">{letter}{row}</div>
-                </div>
-              ))
-            )}
-          </div>
-          <div className="w-16"></div>
-          <div className="flex gap-1">
-            {row <= 4 ? (
-              // First Class 2-2 config
-              <>
-                <div className="w-4"></div>
+              </div>
+              
+              {/* Aisle */}
+              <div className="w-16"></div>
+              
+              {/* Right side first class */}
+              <div className="flex gap-1">
                 {['D', 'F'].map(letter => (
                   <div
                     key={`${letter}${row}`}
-                    className={getSeatStyle('first', flightData.seats[`${letter}${row}`]?.occupied, `${letter}${row}` === 'A12')}
+                    className={getSeatStyle('first', flightData.seats[`${letter}${row}`]?.occupied, `${letter}${row}`)}
                   >
                     <div className="text-xs font-bold">{letter}{row}</div>
+                    {!flightData.seats[`${letter}${row}`]?.occupied && (
+                      <div className="text-[8px] text-gray-600">
+                        {flightData.seats[`${letter}${row}`]?.price}
+                      </div>
+                    )}
                   </div>
                 ))}
-                <div className="w-4"></div>
-              </>
-            ) : (
-              // Regular 3-3 config
-              ['D', 'E', 'F'].map(letter => (
-                <div
-                  key={`${letter}${row}`}
-                  className={getSeatStyle(
-                    row <= 12 ? 'extra' : 'economy',
-                    flightData.seats[`${letter}${row}`]?.occupied,
-                    `${letter}${row}` === 'A12'
-                  )}
-                >
-                  <div className="text-xs font-bold">{letter}{row}</div>
-                </div>
-              ))
-            )}
-          </div>
+              </div>
+            </div>
+          ) : (
+            // Regular 3-3 config
+            <div className="flex w-full">
+              <div className="flex gap-1">
+                {['A', 'B', 'C'].map(letter => (
+                  <div
+                    key={`${letter}${row}`}
+                    className={getSeatStyle(
+                      row <= 12 ? 'extra' : 'economy',
+                      flightData.seats[`${letter}${row}`]?.occupied,
+                      `${letter}${row}`
+                    )}
+                  >
+                    <div className="text-xs font-bold">{letter}{row}</div>
+                    {!flightData.seats[`${letter}${row}`]?.occupied && (
+                      <div className="text-[8px] text-gray-600">
+                        {flightData.seats[`${letter}${row}`]?.price}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              
+              {/* Aisle */}
+              <div className="w-16"></div>
+              
+              <div className="flex gap-1">
+                {['D', 'E', 'F'].map(letter => (
+                  <div
+                    key={`${letter}${row}`}
+                    className={getSeatStyle(
+                      row <= 12 ? 'extra' : 'economy',
+                      flightData.seats[`${letter}${row}`]?.occupied,
+                      `${letter}${row}`
+                    )}
+                  >
+                    <div className="text-xs font-bold">{letter}{row}</div>
+                    {!flightData.seats[`${letter}${row}`]?.occupied && (
+                      <div className="text-[8px] text-gray-600">
+                        {flightData.seats[`${letter}${row}`]?.price}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       );
     };

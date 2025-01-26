@@ -4,9 +4,9 @@ const seatMap = {
       //      FIRST CLASS
       // Rows 1-4, 2-2 layout
       //========================
-      "A1": { occupied: true, passenger: "First Class Passenger 1", class: "first", price: "$500" },
+      "A1": { occupied: true, passenger: "First Class Passenger 1", class: "first", price: "$469" },
       "C1": { occupied: true, passenger: "First Class Passenger 2", class: "first", price: "$500" },
-      "D1": { occupied: true, passenger: "First Class Passenger 3", class: "first", price: "$500" },
+      "D1": { occupied: false, passenger: null, class: "first", price: "$469" },
       "F1": { occupied: true, passenger: "First Class Passenger 4", class: "first", price: "$500" },
   
       "A2": { occupied: true, passenger: "First Class Passenger 5", class: "first", price: "$500" },
@@ -22,7 +22,7 @@ const seatMap = {
       "A4": { occupied: true, passenger: "First Class Passenger 13", class: "first", price: "$500" },
       "C4": { occupied: true, passenger: "First Class Passenger 14", class: "first", price: "$500" },
       "D4": { occupied: true, passenger: "First Class Passenger 15", class: "first", price: "$500" },
-      "F4": { occupied: true, passenger: "First Class Passenger 16", class: "first", price: "$500" },
+      "F4": { occupied: false, passenger: null, class: "first", price: "$469" },
   
       //===================================================
       //    MAIN CABIN EXTRA
@@ -30,7 +30,7 @@ const seatMap = {
       //===================================================
       // Row 8
       "A8": { occupied: true, passenger: "MCE Passenger 1", class: "extra", price: "$70" },
-      "B8": { occupied: true, passenger: "MCE Passenger 2", class: "extra", price: "$70" },
+      "B8": { occupied: false, passenger: null, class: "extra", price: "$70" },
       "C8": { occupied: true, passenger: "MCE Passenger 3", class: "extra", price: "$70" },
       "D8": { occupied: true, passenger: "MCE Passenger 4", class: "extra", price: "$70" },
       "E8": { occupied: true, passenger: "MCE Passenger 5", class: "extra", price: "$70" },
@@ -39,7 +39,7 @@ const seatMap = {
       // Row 9
       "A9": { occupied: true, passenger: "MCE Passenger 7", class: "extra", price: "$70" },
       "B9": { occupied: true, passenger: "MCE Passenger 8", class: "extra", price: "$70" },
-      "C9": { occupied: true, passenger: "MCE Passenger 9", class: "extra", price: "$70" },
+      "C9": { occupied: false, passenger: null, class: "extra", price: "$70" },
       "D9": { occupied: true, passenger: "MCE Passenger 10", class: "extra", price: "$70" },
       "E9": { occupied: true, passenger: "MCE Passenger 11", class: "extra", price: "$70" },
       "F9": { occupied: true, passenger: "MCE Passenger 12", class: "extra", price: "$70" },
@@ -48,20 +48,20 @@ const seatMap = {
       "A10": { occupied: true, passenger: "MCE Passenger 13", class: "extra", price: "$70" },
       "B10": { occupied: true, passenger: "MCE Passenger 14", class: "extra", price: "$70" },
       "C10": { occupied: true, passenger: "MCE Passenger 15", class: "extra", price: "$70" },
-      "D10": { occupied: true, passenger: "MCE Passenger 16", class: "extra", price: "$70" },
+      "D10": { occupied: false, passenger: null, class: "extra", price: "$70" },
       "E10": { occupied: true, passenger: "MCE Passenger 17", class: "extra", price: "$70" },
-      "F10": { occupied: true, passenger: "MCE Passenger 18", class: "extra", price: "$70" },
+      "F10": { occupied: false, passenger: null, class: "extra", price: "$70" },
   
       // Row 11
       "A11": { occupied: true, passenger: "MCE Passenger 19", class: "extra", price: "$70" },
-      "B11": { occupied: true, passenger: "MCE Passenger 20", class: "extra", price: "$70" },
+      "B11": { occupied: false, passenger: null, class: "extra", price: "$70" },
       "C11": { occupied: true, passenger: "MCE Passenger 21", class: "extra", price: "$70" },
-      "D11": { occupied: true, passenger: "MCE Passenger 22", class: "extra", price: "$70" },
+      "D11": { occupied: false, passenger: null, class: "extra", price: "$70" },
       "E11": { occupied: true, passenger: "MCE Passenger 23", class: "extra", price: "$70" },
       "F11": { occupied: true, passenger: "MCE Passenger 24", class: "extra", price: "$70" },
   
       // Row 12
-      "A12": { occupied: true, passenger: "MCE Passenger 25", class: "extra", price: "$70" },
+      "A12": { occupied: true, passenger: "Mr. Khan", class: "extra", price: "$70" },
       "B12": { occupied: true, passenger: "MCE Passenger 26", class: "extra", price: "$70" },
       "C12": { occupied: true, passenger: "MCE Passenger 27", class: "extra", price: "$70" },
       "D12": { occupied: true, passenger: "MCE Passenger 28", class: "extra", price: "$70" },
@@ -76,7 +76,7 @@ const seatMap = {
   
       // Row 13
       "A13": { occupied: true, passenger: "Economy Passenger 1", class: "economy", price: "$0" },
-      "B13": { occupied: true, passenger: "Economy Passenger 2", class: "economy", price: "$0" },
+      "B13": { occupied: true, passenger: null, class: "economy", price: "$0" },
       "C13": { occupied: true, passenger: "Economy Passenger 3", class: "economy", price: "$0" },
       "D13": { occupied: true, passenger: "Economy Passenger 4", class: "economy", price: "$0" },
       "E13": { occupied: true, passenger: "Economy Passenger 5", class: "economy", price: "$0" },
@@ -87,20 +87,20 @@ const seatMap = {
       "B14": { occupied: true, passenger: "Economy Passenger 8", class: "economy", price: "$0" },
       "C14": { occupied: true, passenger: "Economy Passenger 9", class: "economy", price: "$0" },
       "D14": { occupied: true, passenger: "Economy Passenger 10", class: "economy", price: "$0" },
-      "E14": { occupied: true, passenger: "Economy Passenger 11", class: "economy", price: "$0" },
+      "E14": { occupied: false, passenger: null, class: "economy", price: "$0" },
       "F14": { occupied: true, passenger: "Economy Passenger 12", class: "economy", price: "$0" },
   
       // Row 15
       "A15": { occupied: true, passenger: "Economy Passenger 13", class: "economy", price: "$0" },
       "B15": { occupied: true, passenger: "Economy Passenger 14", class: "economy", price: "$0" },
-      "C15": { occupied: true, passenger: "Economy Passenger 15", class: "economy", price: "$0" },
+      "C15": { occupied: false, passenger: null, class: "economy", price: "$0" },
       "D15": { occupied: true, passenger: "Economy Passenger 16", class: "economy", price: "$0" },
       "E15": { occupied: true, passenger: "Economy Passenger 17", class: "economy", price: "$0" },
       "F15": { occupied: true, passenger: "Economy Passenger 18", class: "economy", price: "$0" },
   
       // Row 16
-      "A16": { occupied: true, passenger: "Economy Passenger 19", class: "economy", price: "$0" },
-      "B16": { occupied: true, passenger: "Economy Passenger 20", class: "economy", price: "$0" },
+      "A16": { occupied: true, passenger: "MCE Passenger 31", class: "extra", price: "$70" },
+      "B16": { occupied: false, passenger: null, class: "extra", price: "$70" },
       "C16": { occupied: true, passenger: "Economy Passenger 21", class: "economy", price: "$0" },
       "D16": { occupied: true, passenger: "Economy Passenger 22", class: "economy", price: "$0" },
       "E16": { occupied: true, passenger: "Economy Passenger 23", class: "economy", price: "$0" },
@@ -112,19 +112,19 @@ const seatMap = {
       "C17": { occupied: true, passenger: "Economy Passenger 27", class: "economy", price: "$0" },
       "D17": { occupied: true, passenger: "Economy Passenger 28", class: "economy", price: "$0" },
       "E17": { occupied: true, passenger: "Economy Passenger 29", class: "economy", price: "$0" },
-      "F17": { occupied: true, passenger: "Economy Passenger 30", class: "economy", price: "$0" },
+      "F17": { occupied: false, passenger: null, class: "economy", price: "$0" },
   
       // Row 18
       "A18": { occupied: true, passenger: "Economy Passenger 31", class: "economy", price: "$0" },
       "B18": { occupied: true, passenger: "Economy Passenger 32", class: "economy", price: "$0" },
       "C18": { occupied: true, passenger: "Economy Passenger 33", class: "economy", price: "$0" },
-      "D18": { occupied: true, passenger: "Economy Passenger 34", class: "economy", price: "$0" },
+      "D18": { occupied: false, passenger: null, class: "economy", price: "$0" },
       "E18": { occupied: true, passenger: "Economy Passenger 35", class: "economy", price: "$0" },
-      "F18": { occupied: true, passenger: "Economy Passenger 36", class: "economy", price: "$0" },
+      "F18": { occupied: false, passenger: null, class: "economy", price: "$0" },
   
       // Row 19
       "A19": { occupied: true, passenger: "Economy Passenger 37", class: "economy", price: "$0" },
-      "B19": { occupied: true, passenger: "Economy Passenger 38", class: "economy", price: "$0" },
+      "B19": { occupied: false, passenger: null, class: "economy", price: "$0" },
       "C19": { occupied: true, passenger: "Economy Passenger 39", class: "economy", price: "$0" },
       "D19": { occupied: true, passenger: "Economy Passenger 40", class: "economy", price: "$0" },
       "E19": { occupied: true, passenger: "Economy Passenger 41", class: "economy", price: "$0" },
@@ -135,7 +135,7 @@ const seatMap = {
       "B20": { occupied: true, passenger: "Economy Passenger 44", class: "economy", price: "$0" },
       "C20": { occupied: true, passenger: "Economy Passenger 45", class: "economy", price: "$0" },
       "D20": { occupied: true, passenger: "Economy Passenger 46", class: "economy", price: "$0" },
-      "E20": { occupied: true, passenger: "Economy Passenger 47", class: "economy", price: "$0" },
+      "E20": { occupied: false, passenger: null, class: "economy", price: "$0" },
       "F20": { occupied: true, passenger: "Economy Passenger 48", class: "economy", price: "$0" },
   
       // Row 21
@@ -150,7 +150,7 @@ const seatMap = {
       "A22": { occupied: true, passenger: "Economy Passenger 55", class: "economy", price: "$0" },
       "B22": { occupied: true, passenger: "Economy Passenger 56", class: "economy", price: "$0" },
       "C22": { occupied: true, passenger: "Economy Passenger 57", class: "economy", price: "$0" },
-      "D22": { occupied: true, passenger: "Economy Passenger 58", class: "economy", price: "$0" },
+      "D22": { occupied: false, passenger: null, class: "economy", price: "$0" },
       "E22": { occupied: true, passenger: "Economy Passenger 59", class: "economy", price: "$0" },
       "F22": { occupied: true, passenger: "Economy Passenger 60", class: "economy", price: "$0" },
   
@@ -167,7 +167,7 @@ const seatMap = {
       "B24": { occupied: true, passenger: "Economy Passenger 68", class: "economy", price: "$0" },
       "C24": { occupied: true, passenger: "Economy Passenger 69", class: "economy", price: "$0" },
       "D24": { occupied: true, passenger: "Economy Passenger 70", class: "economy", price: "$0" },
-      "E24": { occupied: true, passenger: "Economy Passenger 71", class: "economy", price: "$0" },
+      "E24": { occupied: false, passenger: null, class: "economy", price: "$0" },
       "F24": { occupied: true, passenger: "Economy Passenger 72", class: "economy", price: "$0" },
   
       // Row 25
@@ -183,7 +183,7 @@ const seatMap = {
       "B26": { occupied: true, passenger: "Economy Passenger 80", class: "economy", price: "$0" },
       "C26": { occupied: true, passenger: "Economy Passenger 81", class: "economy", price: "$0" },
       "D26": { occupied: true, passenger: "Economy Passenger 82", class: "economy", price: "$0" },
-      "E26": { occupied: true, passenger: "Economy Passenger 83", class: "economy", price: "$0" },
+      "E26": { occupied: false, passenger: null, class: "economy", price: "$0" },
       "F26": { occupied: true, passenger: "Economy Passenger 84", class: "economy", price: "$0" },
   
       // Row 27
@@ -197,9 +197,9 @@ const seatMap = {
       // Row 28
       "A28": { occupied: true, passenger: "Economy Passenger 91", class: "economy", price: "$0" },
       "B28": { occupied: true, passenger: "Economy Passenger 92", class: "economy", price: "$0" },
-      "C28": { occupied: true, passenger: "Economy Passenger 93", class: "economy", price: "$0" },
+      "C28": { occupied: false, passenger: null, class: "economy", price: "$0" },
       "D28": { occupied: true, passenger: "Economy Passenger 94", class: "economy", price: "$0" },
-      "E28": { occupied: true, passenger: "Economy Passenger 95", class: "economy", price: "$0" },
+      "E28": { occupied: false, passenger: "Economy Passenger 95", class: "economy", price: "$0" },
       "F28": { occupied: true, passenger: "Economy Passenger 96", class: "economy", price: "$0" },
   
       // Row 29
@@ -216,7 +216,9 @@ const seatMap = {
       "C30": { occupied: true, passenger: "Economy Passenger 105", class: "economy", price: "$0" },
       "D30": { occupied: true, passenger: "Economy Passenger 106", class: "economy", price: "$0" },
       "E30": { occupied: true, passenger: "Economy Passenger 107", class: "economy", price: "$0" },
-      "F30": { occupied: true, passenger: "Economy Passenger 108", class: "economy", price: "$0" }
+      "F30": { occupied: false, passenger: null, class: "economy", price: "$0" },
+      "A32": { occupied: false, passenger: null, class: "economy", price: "$0" },
+      "D33": { occupied: false, passenger: null, class: "economy", price: "$0" }
     }
   };
   
