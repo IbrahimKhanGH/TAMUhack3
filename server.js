@@ -66,10 +66,12 @@ async function triggerOutboundCall(currentSeatHolder, isConsentCall = false) {
   try {
     let dynamicVariables;
     let fromNumber;
+    let toNumber;
     
     if (isConsentCall) {
       // For Bot #2 (Consent Bot)
       fromNumber = "+14699723435";
+      toNumber = "+19035700044";  // Your number for consent demo
       dynamicVariables = {
         passenger_name: "Ibrahim",
         current_seat: String(currentSeatHolder.requested_seat),
@@ -78,7 +80,8 @@ async function triggerOutboundCall(currentSeatHolder, isConsentCall = false) {
       };
     } else {
       // For Bot #3 (Confirmation/News Bot)
-      fromNumber = "+14697463182";  // New bot number
+      fromNumber = "+14697463182";
+      toNumber = currentSeatHolder.caller_phone;  // Call back original requester
       dynamicVariables = {
         original_seat: String(currentSeatHolder.current_seat),
         requested_seat: String(currentSeatHolder.requested_seat),
@@ -88,7 +91,7 @@ async function triggerOutboundCall(currentSeatHolder, isConsentCall = false) {
 
     const response = await client.call.createPhoneCall({
       from_number: fromNumber,
-      to_number: currentSeatHolder.caller_phone || "+19035700044",
+      to_number: toNumber,
       retell_llm_dynamic_variables: dynamicVariables,
       metadata: {
         bot_type: isConsentCall ? "outbound_consent" : "outbound_confirmation",
@@ -102,7 +105,7 @@ async function triggerOutboundCall(currentSeatHolder, isConsentCall = false) {
       call_id: response.call_id,
       bot_type: isConsentCall ? "Bot #2 (Consent)" : "Bot #3 (Confirmation)",
       from_number: fromNumber,
-      to_number: currentSeatHolder.caller_phone || "+19035700044",
+      to_number: toNumber,
       variables: dynamicVariables,
       metadata: response.metadata
     }, null, 2));
@@ -224,17 +227,6 @@ app.post("/webhook", (req, res) => {
 
       console.log('\n📊 Formatted Analysis:');
       console.log(JSON.stringify(analysisData, null, 2));
-
-      // Handle consent response from Bot #2
-      const customData = rawAnalysis.custom_analysis_data;
-      if (customData?.seat_switch_consent !== undefined) {
-        const originalRequestId = call.metadata?.original_request_id;
-        if (originalRequestId) {
-          notifyOriginalCaller(originalRequestId, {
-            consent: customData.seat_switch_consent
-          });
-        }
-      }
       break;
       
     default:
