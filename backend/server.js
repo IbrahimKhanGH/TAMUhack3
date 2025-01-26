@@ -1,6 +1,6 @@
 require('dotenv').config();
 const express = require('express');
-const Retell = require('retell-sdk');
+const Retell = require('retell-sdk').default;
 
 const app = express();
 app.use(express.json({ limit: '50mb' }));
@@ -14,6 +14,7 @@ const client = new Retell({
 const activeRequests = new Map();
 const seatSwitchRequests = new Map();
 const processedConsents = new Set(); // To track which consent responses we've handled
+const clients = new Set();
 
 function formatCallAnalysis(call) {
   const customData = call?.call_analysis?.custom_analysis_data;
@@ -117,10 +118,37 @@ async function triggerOutboundCall(currentSeatHolder, isConsentCall = false) {
   }
 }
 
+// Add this endpoint for SSE
+app.get('/events', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  // Add this client to our Set
+  clients.add(res);
+
+  // Remove client when they disconnect
+  req.on('close', () => clients.delete(res));
+});
+
+// Add this function to send updates to all connected clients
+function sendEventToClients(eventData) {
+  clients.forEach(client => {
+    client.write(`data: ${JSON.stringify(eventData)}\n\n`);
+  });
+}
+
 // Webhook endpoint
 app.post("/webhook", (req, res) => {
   const { event, call } = req.body;
   
+  // Send the event data to all connected clients
+  sendEventToClients({
+    type: event,
+    timestamp: new Date().toISOString(),
+    data: call
+  });
+
   const eventData = {
     event_type: event,
     timestamp: new Date().toISOString(),
