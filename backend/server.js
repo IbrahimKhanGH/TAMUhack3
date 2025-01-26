@@ -72,15 +72,40 @@ app.post('/api/update-seat', (req, res) => {
     return match ? `${match[2]}${match[1]}` : seat;
   };
   
+  // Validate the new seat format
+  const formattedNewSeat = formatToFrontend(newSeat);
+  if (!/^[A-F]\d{1,2}$/.test(formattedNewSeat)) {
+    console.error('❌ Invalid seat format:', formattedNewSeat);
+    return res.status(400).json({ 
+      success: false, 
+      message: 'Invalid seat format' 
+    });
+  }
+  
   // Store in frontend format (letter first)
-  currentUserSeat = formatToFrontend(newSeat);
+  currentUserSeat = formattedNewSeat;
   console.log(`\n🔄 Seat updated from ${previousSeat} to ${currentUserSeat}`);
   
+  // Send event to clients with both seats' information
   sendEventToClients({
     type: 'SEAT_UPDATED',
     data: {
-      previousSeat: previousSeat,  // Use the stored previous seat
-      newSeat: currentUserSeat
+      previousSeat: previousSeat,
+      newSeat: currentUserSeat,
+      seatSwap: {
+        [previousSeat]: { 
+          occupied: true, 
+          passenger: "Original Passenger",
+          class: "economy", // Add default class
+          price: "$0" // Add default price
+        },
+        [currentUserSeat]: { 
+          occupied: true, 
+          passenger: "Mr. Khan",
+          class: "economy", // Add default class
+          price: "$0" // Add default price
+        }
+      }
     }
   });
 

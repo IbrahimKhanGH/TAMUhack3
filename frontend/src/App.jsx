@@ -137,18 +137,45 @@ function App() {
           break;
 
         case 'SEAT_UPDATED':
-          const { previousSeat, newSeat } = data.data;
-          if (originalSeat === previousSeat) {
-            console.log('🔄 Seat Updated:', { previousSeat, newSeat });
-            setOriginalSeat(newSeat);
-            setFlightData(prev => ({
-              ...prev,
-              seats: {
-                ...prev.seats,
-                [previousSeat]: { ...prev.seats[previousSeat], occupied: false, passenger: null },
-                [newSeat]: { ...prev.seats[newSeat], occupied: true, passenger: "Mr. Khan" } // Update passenger as needed
+          const { previousSeat, newSeat, seatSwap } = data.data;
+          
+          // Safety check to ensure seats exist in the map
+          if (previousSeat && newSeat) {
+            setFlightData(prev => {
+              // Verify both seats exist in the map
+              const prevSeatExists = previousSeat in prev.seats;
+              const newSeatExists = newSeat in prev.seats;
+              
+              if (!prevSeatExists || !newSeatExists) {
+                console.error('❌ Invalid seat update - seats not found in map:', {
+                  previousSeat,
+                  newSeat,
+                  prevSeatExists,
+                  newSeatExists
+                });
+                return prev;
               }
-            }));
+
+              return {
+                ...prev,
+                seats: {
+                  ...prev.seats,
+                  [previousSeat]: {
+                    ...prev.seats[previousSeat],
+                    occupied: true,
+                    passenger: "Original Passenger"
+                  },
+                  [newSeat]: {
+                    ...prev.seats[newSeat],
+                    occupied: true,
+                    passenger: "Mr. Khan"
+                  }
+                }
+              };
+            });
+            setOriginalSeat(newSeat);
+          } else {
+            console.error('❌ Invalid seat update data:', data.data);
           }
           break;
 
