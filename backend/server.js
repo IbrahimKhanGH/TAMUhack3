@@ -408,6 +408,70 @@ app.post("/webhook", async (req, res) => {
   res.status(204).send();
 });
 
+// Alert Call Endpoint
+app.post("/api/trigger-alert", async (req, res) => {
+  try {
+    const {
+      caller_name,
+      flight_number,
+      alert_type,
+      reason_for_change,
+      gate_number,
+      estimated_delay_duration,
+      confidence_level,
+      new_departure_time,
+      recommendation
+    } = req.body;
+
+    console.log('\n🚨 Triggering Alert Call with variables:', {
+      caller_name,
+      flight_number,
+      alert_type,
+      reason_for_change
+    });
+
+    // Create the outbound call using Retell client
+    const response = await client.call.createPhoneCall({
+      from_number: "+19726946749",
+      to_number: "+19035700044",
+      retell_llm_dynamic_variables: {
+        caller_name: caller_name || "valued passenger",
+        flight_number: flight_number || "AA2093",
+        alert_type: alert_type || "delay",
+        reason_for_change: reason_for_change || "weather conditions",
+        gate_number: gate_number || "not available",
+        estimated_delay_duration: estimated_delay_duration || "unknown",
+        confidence_level: confidence_level || "medium",
+        new_departure_time: new_departure_time || "to be determined",
+        recommendation: recommendation || "stay tuned for updates"
+      },
+      metadata: {
+        bot_type: "alert_bot",
+        alert_type: alert_type
+      }
+    });
+
+    console.log('📞 Alert Call Created:', {
+      call_id: response.call_id,
+      status: response.status
+    });
+
+    res.json({
+      success: true,
+      message: "Alert call triggered successfully",
+      call_id: response.call_id
+    });
+
+  } catch (error) {
+    console.error('❌ Error triggering alert call:', error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to trigger alert call",
+      error: error.message
+    });
+  }
+});
+
 // Basic health check endpoint
 app.get("/health", (req, res) => {
   res.status(200).json({ 
