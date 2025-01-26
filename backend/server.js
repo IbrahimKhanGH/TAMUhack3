@@ -16,6 +16,9 @@ const seatSwitchRequests = new Map();
 const processedConsents = new Set();
 const clients = new Set();
 
+// Initialize with a properly formatted seat (letter first)
+let currentUserSeat = 'A12';
+
 function formatCallAnalysis(call) {
   const customData = call?.call_analysis?.custom_analysis_data;
   
@@ -45,6 +48,44 @@ function formatCallAnalysis(call) {
     }
   };
 }
+
+// Endpoint to get the current user's seat
+app.get('/api/current-seat', (req, res) => {
+  console.log('Current seat requested:', currentUserSeat);
+  // Ensure the seat format is valid (letter followed by number)
+  const isValidSeat = /^[A-F]\d{1,2}$/.test(currentUserSeat);
+  if (!isValidSeat) {
+    console.error('❌ Invalid seat format:', currentUserSeat);
+    currentUserSeat = 'A12'; // Reset to a valid seat (letter first)
+  }
+  res.json({ seat: currentUserSeat });
+});
+
+// Endpoint to update the current user's seat
+app.post('/api/update-seat', (req, res) => {
+  const { newSeat } = req.body;
+  const previousSeat = currentUserSeat;
+  
+  // Convert from backend format (12A) to frontend format (A12)
+  const formatToFrontend = (seat) => {
+    const match = seat.match(/^(\d{1,2})([A-F])$/);
+    return match ? `${match[2]}${match[1]}` : seat;
+  };
+  
+  // Store in frontend format (letter first)
+  currentUserSeat = formatToFrontend(newSeat);
+  console.log(`\n🔄 Seat updated from ${previousSeat} to ${currentUserSeat}`);
+  
+  sendEventToClients({
+    type: 'SEAT_UPDATED',
+    data: {
+      previousSeat: previousSeat,  // Use the stored previous seat
+      newSeat: currentUserSeat
+    }
+  });
+
+  res.json({ success: true, seat: currentUserSeat });
+});
 
 // Endpoint for dynamic variables webhook
 app.post("/dynamic-variables", (req, res) => {
@@ -184,32 +225,46 @@ app.post("/webhook", (req, res) => {
       });
       
       if (call.metadata?.bot_type === "outbound_consent") {
-        // Handle consent response from Bot #2
         const consent = rawAnalysis.custom_analysis_data?.seat_switch_consent;
         const originalRequestId = call.metadata?.original_request_id;
         
-        const consentKey = `${originalRequestId}_${consent}`;
-        console.log('\n🔑 Consent Processing:', {
-          consentKey,
-          alreadyProcessed: processedConsents.has(consentKey),
-          consent,
-          originalRequestId
-        });
-
-        if (consent !== undefined && originalRequestId && !processedConsents.has(consentKey)) {
-          console.log('\n✨ Processing New Consent Response');
-          processedConsents.add(consentKey);
-          
+        console.log('🤝 Processing Consent:', { consent, originalRequestId });
+        
+        if (consent && originalRequestId) {
           const originalRequest = seatSwitchRequests.get(originalRequestId);
           if (originalRequest) {
-            console.log('\n📞 Triggering Bot #3 (Confirmation Call)');
-            triggerOutboundCall({
-              ...originalRequest,
-              consent_result: String(consent)
-            }, false);
+            console.log('📝 Original Request Found:', originalRequest);
+            
+            // Update the current seat
+            const oldSeat = originalRequest.current_seat;
+            const newSeat = originalRequest.requested_seat;
+            currentUserSeat = newSeat;
+
+            // Send event to frontend about the seat switch
+            sendEventToClients({
+              type: 'SEAT_SWITCH_CONFIRMED',
+              data: {
+                oldSeat,
+                newSeat,
+                success: true
+              }
+            });
+
+            // Store consent result and trigger confirmation call
+            originalRequest.consent_result = consent;
+            console.log('📞 Triggering confirmation call for:', originalRequest);
+            
+            // Trigger Bot #3 (Confirmation Call)
+            triggerOutboundCall(originalRequest, false)
+              .then(response => {
+                console.log('✅ Confirmation call triggered:', response.call_id);
+              })
+              .catch(error => {
+                console.error('❌ Failed to trigger confirmation call:', error);
+              });
+          } else {
+            console.error('❌ Original request not found for ID:', originalRequestId);
           }
-        } else {
-          console.log('\n⚠️ Skipping Duplicate Consent Processing');
         }
       } else if (rawAnalysis.custom_analysis_data?.seat_switch_requested) {
         console.log('\n📝 New Seat Switch Request Detected');
@@ -222,8 +277,16 @@ app.post("/webhook", (req, res) => {
           reason: rawAnalysis.custom_analysis_data.seat_switch_reason
         });
         
+        // Send event to frontend about the request
+        sendEventToClients({
+          type: 'SEAT_SWITCH_REQUESTED',
+          data: {
+            currentSeat: rawAnalysis.custom_analysis_data.current_seat_number,
+            requestedSeat: rawAnalysis.custom_analysis_data.requested_seat_number
+          }
+        });
+        
         // Trigger consent call
-        console.log('\n📞 Triggering Bot #2 (Consent Call)');
         triggerOutboundCall(seatSwitchRequests.get(call.call_id), true);
       }
 

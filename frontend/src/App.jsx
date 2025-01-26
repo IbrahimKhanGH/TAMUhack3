@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { seatMap } from './seatMap.js'  // Make sure to include the .js extension
+import axios from 'axios'
 
 function App() {
   const [events, setEvents] = useState([]);
@@ -31,90 +32,154 @@ function App() {
     },
     seats: seatMap.seats
   });
-  const [userSeat, setUserSeat] = useState('D13'); // Default seat
-  const [originalSeat, setOriginalSeat] = useState('A12');  // Starting seat
-  const [requestedSeat, setRequestedSeat] = useState(null); // Seat someone wants to switch to
+  const [originalSeat, setOriginalSeat] = useState(null);
+  const [requestedSeat, setRequestedSeat] = useState(null);
   const [seatSwitchPending, setSeatSwitchPending] = useState(false);
 
+  // **1. Define handleSeatSwitch before useEffect**
+  // Function to handle seat switching
   const handleSeatSwitch = useCallback((oldSeat, newSeat) => {
-    // First update the visual states
+    console.log('🛠️ Handling seat switch:', { oldSeat, newSeat });
+    
+    // Validate seat format
+    const isValidSeat = (seat) => /^[A-F]\d{1,2}$/.test(seat);
+    if (!isValidSeat(oldSeat) || !isValidSeat(newSeat)) {
+      console.error('❌ Invalid seat format:', { oldSeat, newSeat });
+      return;
+    }
+
     setFlightData(prev => ({
       ...prev,
       seats: {
         ...prev.seats,
-        [oldSeat]: { 
-          ...prev.seats[oldSeat], 
-          occupied: true,  // Previous seat becomes occupied
-          passenger: "Another Passenger" 
-        },
-        [newSeat]: { 
-          ...prev.seats[newSeat], 
-          occupied: true, 
-          passenger: "Mr. Khan" 
-        }
+        [oldSeat]: { ...prev.seats[oldSeat], occupied: false, passenger: null },
+        [newSeat]: { ...prev.seats[newSeat], occupied: true, passenger: "Mr. Khan" }
       }
     }));
-    
-    // Update the current seat
     setOriginalSeat(newSeat);
+
+    // Format seat for backend (convert from "A12" to "12A")
+    const formatForBackend = (seat) => {
+      const letter = seat[0];
+      const number = seat.slice(1);
+      return `${number}${letter}`;
+    };
+
+    axios.post('/api/update-seat', { newSeat: formatForBackend(newSeat) })
+      .then(response => {
+        console.log('✅ Seat updated successfully:', response.data.seat);
+      })
+      .catch(error => {
+        console.error('❌ Error updating seat:', error);
+      });
   }, []);
 
+  // **2. Fetch the current seat from the backend when the component mounts**
   useEffect(() => {
-    // Fetch health status
-    fetch('/api/health')
-      .then(res => res.json())
-      .then(data => setHealth(data))
-      .catch(err => console.error('Error fetching health:', err));
+    console.log('🚀 Fetching current seat...');
+    axios.get('/api/current-seat')
+      .then(response => {
+        const seatId = response.data.seat;
+        console.log('📍 Current seat fetched:', {
+          rawSeat: seatId,
+          seatExists: seatId in flightData.seats
+        });
+        
+        if (seatId) {
+          setOriginalSeat(seatId);
+          setFlightData(prev => ({
+            ...prev,
+            seats: {
+              ...prev.seats,
+              [seatId]: {
+                ...prev.seats[seatId],
+                occupied: true,
+                passenger: "Mr. Khan"
+              }
+            }
+          }));
+        }
+      })
+      .catch(error => {
+        console.error('❌ Error fetching current seat:', error);
+      });
+  }, []);
 
-    // Connect to SSE endpoint
-    const eventSource = new EventSource('/api/events');
-    
+  // **3. Handle Server-Sent Events (SSE)**
+  useEffect(() => {
+    const eventSource = new EventSource('/events');
+
     eventSource.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      // Simplify the data before storing
-      const simplifiedData = {
+      console.log('🎯 SSE Event Received:', {
         type: data.type,
-        timestamp: data.timestamp,
-        callDetails: {
-          id: data.data.call_id,
-          status: data.data.call_status,
-          duration: data.data.duration_ms ? `${(data.data.duration_ms / 1000).toFixed(1)}s` : 'ongoing',
-          transcript: data.data.transcript,
-          analysis: data.data.call_analysis?.custom_analysis_data || {}
-        }
-      };
+        data: data.data,
+        timestamp: new Date().toISOString()
+      });
 
-      // Add seat update handling
-      if (data.type === 'seat_update') {
-        setUserSeat(data.data.new_seat);
-      }
-
-      // Handle different event types
       switch(data.type) {
-        case 'SEAT_SWITCH_REQUEST':
-          setRequestedSeat(data.data.requested_seat);
+        case 'SEAT_SWITCH_REQUESTED':
+          console.log('🔄 Seat Switch Requested:', data.data);
+          setRequestedSeat(data.data.requestedSeat);
           setSeatSwitchPending(true);
           break;
-        
-        case 'SEAT_SWITCH_CONSENT':
-          if (data.data.consent_given) {
-            const oldSeat = originalSeat;
-            const newSeat = requestedSeat;
-            handleSeatSwitch(oldSeat, newSeat);
+
+        case 'SEAT_SWITCH_CONFIRMED':
+          console.log('✅ Seat Switch Confirmed:', data.data);
+          if (data.data.success) {
+            console.log('🔄 Calling handleSeatSwitch with:', {
+              oldSeat: data.data.oldSeat,
+              newSeat: data.data.newSeat
+            });
+            handleSeatSwitch(data.data.oldSeat, data.data.newSeat);
+            setSeatSwitchPending(false);
           }
-          setSeatSwitchPending(false);
-          setRequestedSeat(null);
           break;
+
+        case 'SEAT_UPDATED':
+          const { previousSeat, newSeat } = data.data;
+          if (originalSeat === previousSeat) {
+            console.log('🔄 Seat Updated:', { previousSeat, newSeat });
+            setOriginalSeat(newSeat);
+            setFlightData(prev => ({
+              ...prev,
+              seats: {
+                ...prev.seats,
+                [previousSeat]: { ...prev.seats[previousSeat], occupied: false, passenger: null },
+                [newSeat]: { ...prev.seats[newSeat], occupied: true, passenger: "Mr. Khan" } // Update passenger as needed
+              }
+            }));
+          }
+          break;
+
+        // Handle other event types as needed
+        default:
+          console.log('ℹ️ Unhandled event type:', data.type);
       }
 
-      setEvents(prev => [simplifiedData, ...prev].slice(0, 10)); // Keep only last 10 events
+      // Log current state after processing
+      console.log('📊 Current State:', {
+        originalSeat,
+        requestedSeat,
+        seatSwitchPending,
+        timestamp: new Date().toISOString()
+      });
+    };
+
+    eventSource.onerror = (error) => {
+      console.error('❌ SSE Error:', error);
+      eventSource.close();
     };
 
     return () => {
       eventSource.close();
     };
-  }, [originalSeat, requestedSeat, handleSeatSwitch]);
+  }, [originalSeat, handleSeatSwitch]);
 
+  // **4. Logging for handleSeatSwitch**
+  // This is already included within handleSeatSwitch via console.log
+
+  // **5. Render Seat Map Function**
   const renderSeatMap = () => {
     const rows = [];
     const totalRows = 30;
@@ -124,8 +189,8 @@ function App() {
     const getSeatStyle = (seatClass, isOccupied, seatId) => {
       const baseStyle = "w-8 h-8 rounded flex flex-col items-center justify-center text-xs transition-all duration-500";
       
-      // Your seat - with pulse animation when switching
       if (seatId === originalSeat) {
+        console.log('🎯 Matching seat found:', seatId);
         return `${baseStyle} bg-yellow-100 border-2 border-yellow-400 ${
           seatSwitchPending ? 'animate-pulse' : ''
         }`;
@@ -283,6 +348,11 @@ function App() {
       </div>
     );
   };
+
+  // Add debug logging for originalSeat changes
+  useEffect(() => {
+    console.log('🔍 Original Seat Changed:', originalSeat);
+  }, [originalSeat]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-900 to-blue-800">
