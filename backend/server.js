@@ -305,7 +305,7 @@ app.post("/webhook", async (req, res) => {
         }
       }
 
-      // Handle Confirmation Calls based on consent call's call_id
+      // Handle Consent Calls based on consent call's call_id
       if (call.metadata?.bot_type === 'outbound_consent') {
         const consentCallId = call.call_id;
         const originalRequestId = consentCallToOriginalRequest.get(consentCallId);
@@ -315,6 +315,9 @@ app.post("/webhook", async (req, res) => {
           
           if (originalRequest) {
             console.log('✨ Processing confirmation call for original_request_id:', originalRequestId);
+            
+            // Add this line to store the consent result
+            originalRequest.consent_result = analysis?.custom_analysis_data?.seat_switch_consent;
             
             // Trigger confirmation call
             try {
